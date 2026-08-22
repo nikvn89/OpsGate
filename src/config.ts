@@ -1,16 +1,33 @@
+const DEFAULT_CONTRACT_ADDRESS =
+  "0xBb945d1e8f7072a211F634077742Cb319337AcbF" as const;
+
+const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
+
+const envContract = String(
+  import.meta.env.VITE_CONTRACT_ADDRESS ?? ""
+).trim();
+
 export const CONTRACT_ADDRESS =
-  (import.meta.env.VITE_CONTRACT_ADDRESS as `0x${string}` | undefined) ??
-  "0xBb945d1e8f7072a211F634077742Cb319337AcbF";
+  (ADDRESS_RE.test(envContract)
+    ? envContract
+    : DEFAULT_CONTRACT_ADDRESS) as `0x${string}`;
 
-export const READ_RPC =
-  (import.meta.env.VITE_READ_RPC as string | undefined) ?? "/api/rpc";
+const envReadRpc = String(import.meta.env.VITE_READ_RPC ?? "").trim();
 
-export const DEMO_WORKSPACE_ID = Number(
-  import.meta.env.VITE_DEMO_WORKSPACE_ID ?? "0"
-);
+export const READ_RPC = envReadRpc || "/api/rpc";
 
-export const READ_STATE_STATUS =
-  (import.meta.env.VITE_READ_STATE_STATUS as string | undefined) ?? "finalized";
+const envDemoWorkspace = String(
+  import.meta.env.VITE_DEMO_WORKSPACE_ID ?? ""
+).trim();
+
+export const DEMO_WORKSPACE_ID = Number(envDemoWorkspace || "0");
+
+const envReadState = String(
+  import.meta.env.VITE_READ_STATE_STATUS ?? ""
+).trim();
+
+export const READ_STATE_STATUS = envReadState || "finalized";
 
 export const EXPLORER_BASE = "https://explorer-studio.genlayer.com";
-export const CONTRACT_EXPLORER_URL = `${EXPLORER_BASE}/address/${CONTRACT_ADDRESS}`;
+export const CONTRACT_EXPLORER_URL =
+  `${EXPLORER_BASE}/address/${CONTRACT_ADDRESS}`;
