@@ -897,8 +897,8 @@ export default function App() {
                   <>
                     <div className="change-heading">
                       <div>
-                        <span className="micro">DECLARED CHANGE</span>
-                        <h2>#{change.change_id} / Workspace #{change.workspace_id}</h2>
+                        <span className="micro">WORKSPACE #{change.workspace_id}</span>
+                        <h2>Change #{change.change_id}</h2>
                       </div>
                       <span className={riskClass(change.risk)}>{riskLabel(change.risk)}</span>
                     </div>
