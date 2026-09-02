@@ -1047,3 +1047,129 @@ footer {
   footer { grid-template-columns: 1fr; padding-top: 12px; }
   .footer-genlayer { justify-self: start; }
 }
+
+/* OpsGate V2 R3 artifact / pipeline controls */
+.artifact-fields { margin-top: 12px; grid-template-columns: 1fr; }
+.artifact-fields input { width: 100%; }
+.artifact-panel { margin-top: 14px; padding: 14px; border: 1px solid rgba(92,215,255,.18); border-radius: 14px; background: rgba(3,14,24,.52); display: grid; gap: 9px; }
+.artifact-panel > div { display: grid; gap: 4px; }
+.artifact-panel code { font-size: 11px; overflow-wrap: anywhere; color: #b6d7e5; }
+.artifact-panel a { display: inline-flex; gap: 6px; align-items: center; width: fit-content; font-size: 12px; }
+.execution-attestation { display: grid; gap: 10px; }
+.execution-attestation label { display: grid; gap: 6px; }
+.execution-attestation label span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .72; }
+.execution-attestation input { width: 100%; }
+
+/* Runtime UX polish after V2 R3 lifecycle testing */
+.artifact-panel {
+  margin: 14px 18px 0;
+  padding: 0;
+  border: 1px solid #cfe2e5;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #f8fffc 0%, #f4fbff 100%);
+  overflow: hidden;
+  display: block;
+  box-shadow: 0 8px 24px rgba(34, 75, 90, .06);
+}
+.artifact-panel.verified { border-color: #b9dfd0; }
+.artifact-panel.attention { border-color: #ead39a; background: linear-gradient(135deg, #fffdf6, #fff8e7); }
+.artifact-verdict {
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  gap: 11px;
+  align-items: center;
+  padding: 13px 14px;
+}
+.artifact-verdict-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--green);
+  background: #e8f8f1;
+  border: 1px solid #b9dfd0;
+}
+.artifact-panel.attention .artifact-verdict-icon { color: var(--amber); background: #fff5db; border-color: #ead39a; }
+.artifact-verdict strong { display: block; margin-top: 3px; color: #173f4c; font-size: 15px; letter-spacing: -.02em; }
+.artifact-verdict small { display: block; margin-top: 3px; color: #70838c; font-size: 9px; line-height: 1.45; }
+.artifact-status-badge {
+  min-height: 27px;
+  padding: 0 9px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--green);
+  background: #e8f8f1;
+  border: 1px solid #b9dfd0;
+  font: 800 8px "IBM Plex Mono", monospace;
+}
+.artifact-panel.attention .artifact-status-badge { color: var(--amber); background: #fff5db; border-color: #ead39a; }
+.artifact-identity {
+  min-height: 54px;
+  padding: 10px 14px;
+  border-top: 1px solid #dfeaec;
+  background: rgba(255,255,255,.62);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.artifact-identity > div:first-child { min-width: 0; }
+.artifact-identity code {
+  display: block;
+  margin-top: 4px;
+  color: #315563;
+  font: 700 10px "IBM Plex Mono", monospace;
+}
+.artifact-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+.artifact-actions button, .artifact-actions a {
+  min-height: 31px;
+  padding: 0 9px;
+  border: 1px solid #cedee4;
+  border-radius: 9px;
+  background: #fff;
+  color: #41606c;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  font-weight: 800;
+}
+.artifact-actions button:hover, .artifact-actions a:hover { border-color: #a9c8d3; background: #f7fbfd; }
+
+.execute-button.is-locked:disabled {
+  opacity: 1;
+  border-color: #e2d39e;
+  background: #fff8e6;
+  color: #8a651f;
+}
+.execute-button.is-ready {
+  border-color: #b7dfca;
+  background: linear-gradient(120deg, #effbf5, #e7f8f0);
+  color: var(--green);
+}
+.execution-availability {
+  margin: -3px 18px 0;
+  color: #8b744b;
+  font-size: 9px;
+  text-align: center;
+}
+
+.tx-floating {
+  animation: txDockIn .18s ease-out;
+}
+@keyframes txDockIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .artifact-verdict { grid-template-columns: 38px 1fr; }
+  .artifact-status-badge { grid-column: 2; width: fit-content; }
+  .artifact-identity { align-items: stretch; flex-direction: column; }
+  .artifact-actions { width: 100%; }
+  .artifact-actions button, .artifact-actions a { flex: 1; justify-content: center; }
+}

@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Check,
   CheckCircle2,
+  ClipboardCopy,
   ChevronRight,
   Circle,
   Clock3,
@@ -128,7 +129,11 @@ export default function App() {
   const [openWorkspaceInput, setOpenWorkspaceInput] = useState("");
   const [approver1, setApprover1] = useState("");
   const [approver2, setApprover2] = useState("");
+  const [pipelineSigner, setPipelineSigner] = useState("");
   const [description, setDescription] = useState("");
+  const [artifactUri, setArtifactUri] = useState("");
+  const [artifactDigest, setArtifactDigest] = useState("");
+  const [executedDigest, setExecutedDigest] = useState("");
   const [openChangeInput, setOpenChangeInput] = useState("");
   const changeIdRef = useRef(0);
 
@@ -138,8 +143,14 @@ export default function App() {
     if (!account || !workspace) return "VIEWER";
     const who = account.toLowerCase();
     if (workspace.owner.toLowerCase() === who) return "OWNER";
-    if (workspace.approver_1.toLowerCase() === who) return "APPROVER 1";
-    if (workspace.approver_2.toLowerCase() === who) return "APPROVER 2";
+    const isA1 = workspace.approver_1.toLowerCase() === who;
+    const isA2 = workspace.approver_2.toLowerCase() === who;
+    const isPipeline = workspace.pipeline_signer.toLowerCase() === who;
+    if (isA1 && isPipeline) return "APPROVER 1 + PIPELINE";
+    if (isA2 && isPipeline) return "APPROVER 2 + PIPELINE";
+    if (isA1) return "APPROVER 1";
+    if (isA2) return "APPROVER 2";
+    if (isPipeline) return "PIPELINE SIGNER";
     return "VIEWER";
   }, [account, workspace]);
 
@@ -147,6 +158,25 @@ export default function App() {
     if (!change || change.executed) return 0;
     return Math.max(0, change.execute_after - now);
   }, [change, now]);
+
+  const executionGate = useMemo(() => {
+    if (!change || change.executed) {
+      return { ready: false, label: "Execution unavailable" };
+    }
+    if (change.approvals < change.approvals_required || !change.approved_at) {
+      return {
+        ready: false,
+        label: `Waiting for approvals · ${change.approvals}/${change.approvals_required}`
+      };
+    }
+    if (browserSecondsRemaining > 0) {
+      return {
+        ready: false,
+        label: `Available in ${formatCountdown(browserSecondsRemaining)}`
+      };
+    }
+    return { ready: true, label: "Attest executed digest" };
+  }, [change, browserSecondsRemaining]);
 
   const canApprove = useMemo(() => {
     if (!account || !workspace || !change || change.executed) return false;
@@ -168,6 +198,10 @@ export default function App() {
 
   const isOwner = Boolean(
     account && workspace && account.toLowerCase() === workspace.owner.toLowerCase()
+  );
+
+  const isPipelineSigner = Boolean(
+    account && workspace && account.toLowerCase() === workspace.pipeline_signer.toLowerCase()
   );
 
   useEffect(() => {
@@ -201,6 +235,7 @@ export default function App() {
         setChangeId(desired);
         setOpenChangeInput(String(desired));
         setChange(nextChange);
+        setExecutedDigest(nextChange.artifact_digest);
       } else {
         setChangeId(0);
         setOpenChangeInput("");
@@ -223,6 +258,7 @@ export default function App() {
         setChangeId(id);
         setOpenChangeInput(String(id));
         setChange(nextChange);
+        setExecutedDigest(nextChange.artifact_digest);
       } catch (e) {
         setError(reportError("load change", e, "Could not load that change."));
       } finally {
@@ -260,7 +296,14 @@ export default function App() {
       }
 
       if (workspaceId > 0) {
+        if (action === "Submit change") {
+          changeIdRef.current = 0;
+          setChangeId(0);
+        }
         await loadWorkspace(workspaceId, true);
+        if (action === "Submit change") {
+          setActiveTab("control");
+        }
       }
     } catch (e) {
       setError(reportError("post-finalization refresh", e));
@@ -356,6 +399,15 @@ export default function App() {
   }, [notice]);
 
   useEffect(() => {
+    if (!tx || !TERMINAL_TX_STATUSES.has(tx.status)) return;
+    const terminalHash = tx.hash;
+    const timer = window.setTimeout(() => {
+      setTx((current) => current?.hash === terminalHash ? null : current);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [tx]);
+
+  useEffect(() => {
     if (!workspaceId) return;
 
     let refreshing = false;
@@ -435,13 +487,47 @@ export default function App() {
     }
 
     if (stateProvesSuccess) {
+      // A submit can be proven finalized from the authoritative workspace count
+      // before the transaction-status endpoint reports FINALIZED. Select the
+      // newly-created change immediately here instead of relying on a later
+      // effect/polling race.
+      if (
+        tx.action === "Submit change" &&
+        workspace &&
+        workspace.workspace_id === tx.workspaceId &&
+        workspace.change_count > (tx.baselineChangeCount ?? 0)
+      ) {
+        const newest = workspace.change_count;
+        changeIdRef.current = newest;
+        setActiveTab("control");
+        void loadSpecificChange(newest);
+      }
+
       setTx((current) =>
         current && current.hash === tx.hash
           ? { ...current, status: "FINALIZED" }
           : current
       );
     }
-  }, [tx, config, workspace, change]);
+  }, [tx, config, workspace, change, loadSpecificChange]);
+
+  useEffect(() => {
+    if (
+      !tx ||
+      tx.action !== "Submit change" ||
+      tx.status !== "FINALIZED" ||
+      !workspace ||
+      workspace.workspace_id !== tx.workspaceId ||
+      workspace.change_count <= (tx.baselineChangeCount ?? 0)
+    ) return;
+
+    const newest = workspace.change_count;
+    if (changeIdRef.current === newest) return;
+
+    changeIdRef.current = newest;
+    setActiveTab("control");
+    void loadSpecificChange(newest);
+  }, [tx, workspace, loadSpecificChange]);
 
   useEffect(() => {
     if (!tx || TERMINAL_TX_STATUSES.has(tx.status)) return;
@@ -520,8 +606,8 @@ export default function App() {
   }
 
   async function createWorkspace() {
-    if (!IS_ADDRESS.test(approver1) || !IS_ADDRESS.test(approver2)) {
-      setError("Enter two valid 0x approver addresses.");
+    if (!IS_ADDRESS.test(approver1) || !IS_ADDRESS.test(approver2) || !IS_ADDRESS.test(pipelineSigner)) {
+      setError("Enter valid 0x addresses for both approvers and the pipeline signer.");
       return;
     }
     if (approver1.toLowerCase() === approver2.toLowerCase()) {
@@ -534,9 +620,13 @@ export default function App() {
         setError("Workspace owner must be different from both approvers.");
         return;
       }
+      if (pipelineSigner.toLowerCase() === owner) {
+        setError("Workspace owner must be different from the pipeline signer.");
+        return;
+      }
     }
 
-    await sendAction("Create workspace", "create_workspace", [approver1, approver2]);
+    await sendAction("Create workspace", "create_workspace", [approver1, approver2, pipelineSigner]);
   }
 
   async function loadMyLatest() {
@@ -566,11 +656,21 @@ export default function App() {
       return;
     }
     const clean = description.trim();
+    const uri = artifactUri.trim();
+    const digest = artifactDigest.trim().toLowerCase();
     if (clean.length < 20) {
       setError("Change description must be at least 20 characters.");
       return;
     }
-    await sendAction("Submit change", "submit_change", [workspaceId, clean]);
+    if (!/^https:\/\//i.test(uri)) {
+      setError("Artifact URI must be a public HTTPS commit-pinned Git locator.");
+      return;
+    }
+    if (!/^[0-9a-f]{40}$/.test(digest)) {
+      setError("Artifact digest must be a 40-character hexadecimal Git object id.");
+      return;
+    }
+    await sendAction("Submit change", "submit_change", [workspaceId, clean, uri, digest]);
   }
 
   async function approveChange() {
@@ -580,7 +680,21 @@ export default function App() {
 
   async function executeChange() {
     if (!workspaceId || !changeId) return;
-    await sendAction("Mark executed", "mark_change_executed", [workspaceId, changeId]);
+    const digest = executedDigest.trim().toLowerCase();
+    if (!/^[0-9a-f]{40}$/.test(digest)) {
+      setError("Execution digest must be a 40-character hexadecimal Git object id.");
+      return;
+    }
+    await sendAction("Mark executed", "mark_change_executed", [workspaceId, changeId, digest]);
+  }
+
+  async function copyDigest(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setNotice("Pinned digest copied.");
+    } catch {
+      setError("Could not copy the digest from this browser.");
+    }
   }
 
   async function manualTxCheck() {
@@ -653,20 +767,20 @@ export default function App() {
               <span> powered by consensus.</span>
             </h1>
             <p>
-              Describe the change once. GenLayer classifies the declared operational risk.
-              OpsGate deterministically enforces approvals, timelock, and the final execution record.
+              Bind every change to a commit-pinned artifact. GenLayer checks description consistency and classifies artifact risk.
+              OpsGate deterministically enforces approvals, post-approval timelock, and pipeline-signed execution.
             </p>
 
             <div className="hero-pipeline">
-              <span>Declare</span>
+              <span>Bind artifact</span>
               <i />
-              <span>Classify</span>
+              <span>Assess</span>
               <i />
               <span>Approve</span>
               <i />
               <span>Wait</span>
               <i />
-              <span>Execute</span>
+              <span>Attest</span>
             </div>
           </div>
 
@@ -781,8 +895,9 @@ export default function App() {
                 {workspace && (
                   <div className="role-stack">
                     <RoleRow label="Owner" value={workspace.owner} active={role === "OWNER"} />
-                    <RoleRow label="Approver 1" value={workspace.approver_1} active={role === "APPROVER 1"} />
-                    <RoleRow label="Approver 2" value={workspace.approver_2} active={role === "APPROVER 2"} />
+                    <RoleRow label="Approver 1" value={workspace.approver_1} active={role.includes("APPROVER 1")} />
+                    <RoleRow label="Approver 2" value={workspace.approver_2} active={role.includes("APPROVER 2")} />
+                    <RoleRow label="Pipeline signer" value={workspace.pipeline_signer} active={role.includes("PIPELINE")} />
                   </div>
                 )}
               </aside>
@@ -807,6 +922,10 @@ export default function App() {
                     <span>Approver 2 wallet</span>
                     <input value={approver2} onChange={(e) => setApprover2(e.target.value)} placeholder="0x…" />
                   </label>
+                  <label>
+                    <span>Pipeline signer wallet</span>
+                    <input value={pipelineSigner} onChange={(e) => setPipelineSigner(e.target.value)} placeholder="0x… (may equal an approver)" />
+                  </label>
                 </div>
 
                 <button className="primary create-workspace-button" onClick={createWorkspace} disabled={pending}>
@@ -819,21 +938,21 @@ export default function App() {
                   <span className="quick-number">01</span>
                   <div>
                     <strong>Create a workspace</strong>
-                    <small>Owner + two independent approvers.</small>
+                    <small>Owner + two approvers + authenticated pipeline signer.</small>
                   </div>
                 </div>
                 <div className="quick-card cyan-card">
                   <span className="quick-number">02</span>
                   <div>
                     <strong>Submit a change</strong>
-                    <small>Natural-language risk goes to GenLayer consensus.</small>
+                    <small>Commit-pinned artifact + description go to GenLayer consensus.</small>
                   </div>
                 </div>
                 <div className="quick-card lime-card">
                   <span className="quick-number">03</span>
                   <div>
                     <strong>Approve, wait, execute</strong>
-                    <small>The contract enforces the deterministic gate.</small>
+                    <small>The pipeline signer attests the exact approved digest.</small>
                   </div>
                 </div>
                 <button className="next-tab-button" onClick={() => setActiveTab("control")} disabled={!workspace}>
@@ -861,6 +980,16 @@ export default function App() {
                   maxLength={config?.max_description_length ?? 1200}
                   placeholder="Describe the production change, its operational effect, reversibility, data impact, and security impact…"
                 />
+                <div className="create-fields artifact-fields">
+                  <label>
+                    <span>Commit-pinned artifact URI</span>
+                    <input value={artifactUri} onChange={(e) => setArtifactUri(e.target.value)} placeholder="https://raw.githubusercontent.com/owner/repo/&lt;40-char-commit&gt;/path/file.txt" />
+                  </label>
+                  <label>
+                    <span>Artifact digest / Git object id</span>
+                    <input value={artifactDigest} onChange={(e) => setArtifactDigest(e.target.value)} placeholder="40 lowercase hex characters" />
+                  </label>
+                </div>
                 <div className="composer-footer">
                   <span>{description.length}/{config?.max_description_length ?? 1200}</span>
                   <div>
@@ -868,7 +997,7 @@ export default function App() {
                     <button
                       className="primary"
                       onClick={submitChange}
-                      disabled={pending || !workspaceId || !isOwner || description.trim().length < 20}
+                      disabled={pending || !workspaceId || !isOwner || description.trim().length < 20 || artifactUri.trim().length < 24 || artifactDigest.trim().length !== 40}
                     >
                       <Activity size={18} /> Submit for consensus
                     </button>
@@ -905,11 +1034,38 @@ export default function App() {
 
                     <blockquote>{change.description}</blockquote>
 
+                    <div className={`artifact-panel ${change.artifact_status === "ARTIFACT_MATCH" ? "verified" : "attention"}`}>
+                      <div className="artifact-verdict">
+                        <span className="artifact-verdict-icon"><ShieldCheck size={20} /></span>
+                        <div>
+                          <span className="micro">PINNED ARTIFACT</span>
+                          <strong>{change.artifact_status === "ARTIFACT_MATCH" ? "Artifact verified" : change.artifact_status.replaceAll("_", " ")}</strong>
+                          <small>Consensus checked this description against the commit-pinned source.</small>
+                        </div>
+                        <span className="artifact-status-badge">{change.artifact_status === "ARTIFACT_MATCH" ? "MATCH" : change.artifact_status}</span>
+                      </div>
+
+                      <div className="artifact-identity">
+                        <div>
+                          <span className="micro">GIT OBJECT ID</span>
+                          <code title={change.artifact_digest}>{SHORT(change.artifact_digest)}</code>
+                        </div>
+                        <div className="artifact-actions">
+                          <button type="button" onClick={() => void copyDigest(change.artifact_digest)} title="Copy full digest">
+                            <ClipboardCopy size={14} /> Copy
+                          </button>
+                          <a href={change.artifact_uri} target="_blank" rel="noreferrer">
+                            <ExternalLink size={14} /> Open source
+                          </a>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="semantic-split">
                       <div>
                         <span className="micro">GENLAYER DECIDES</span>
                         <strong>{riskLabel(change.risk)} operational risk</strong>
-                        <small>Semantic classification from independent validator consensus.</small>
+                        <small>Artifact consistency + risk from independent validator consensus.</small>
                       </div>
                       <div>
                         <span className="micro">CONTRACT DERIVES</span>
@@ -920,6 +1076,7 @@ export default function App() {
 
                     <div className="change-meta">
                       <div><span>CREATED</span><strong>{formatUtc(change.created_at)}</strong></div>
+                      <div><span>FINAL APPROVAL</span><strong>{formatUtc(change.approved_at)}</strong></div>
                       <div><span>EXECUTE AFTER</span><strong>{formatUtc(change.execute_after)}</strong></div>
                       <div><span>STATUS</span><strong className={`status-text ${statusTone(change.status)}`}>{change.status}</strong></div>
                     </div>
@@ -980,20 +1137,35 @@ export default function App() {
                       </button>
                     )}
 
-                    {isOwner && !change.executed && (
-                      <button className="execute-button" onClick={executeChange} disabled={pending}>
-                        <Play size={18} /> Mark as executed
-                      </button>
+                    {isPipelineSigner && !change.executed && (
+                      <div className="execution-attestation">
+                        <label>
+                          <span>Executed digest</span>
+                          <input value={executedDigest} onChange={(e) => setExecutedDigest(e.target.value)} placeholder={change.artifact_digest} />
+                        </label>
+                        <button
+                          className={`execute-button ${executionGate.ready ? "is-ready" : "is-locked"}`}
+                          onClick={executeChange}
+                          disabled={pending || !executionGate.ready}
+                          title={!executionGate.ready && change.execute_after ? `Available after ${formatUtc(change.execute_after)}` : undefined}
+                        >
+                          {executionGate.ready ? <Play size={18} /> : <Clock3 size={18} />}
+                          {executionGate.label}
+                        </button>
+                        {!executionGate.ready && change.approved_at > 0 && browserSecondsRemaining > 0 && (
+                          <small className="execution-availability">Available after {formatUtc(change.execute_after)}.</small>
+                        )}
+                      </div>
                     )}
 
                     {change.executed && (
                       <div className="executed-seal">
                         <CheckCircle2 size={25} />
-                        <div><strong>EXECUTED</strong><span>On-chain record is terminal.</span></div>
+                        <div><strong>EXECUTED</strong><span>{change.executed_digest ? `Digest ${SHORT(change.executed_digest)} · ${formatUtc(change.executed_at)}` : "On-chain record is terminal."}</span></div>
                       </div>
                     )}
 
-                    {!canApprove && !isOwner && !change.executed && (
+                    {!canApprove && !isPipelineSigner && !change.executed && (
                       <div className="viewer-note">
                         <KeyRound size={16} /> Connected wallet has no write role for this change.
                       </div>
@@ -1062,7 +1234,7 @@ export default function App() {
               <section className="policy-board">
                 <div className="policy-intro">
                   <span className="eyebrow">DETERMINISTIC CONSEQUENCE</span>
-                  <h2>Consensus chooses risk.<br />Code chooses the gate.</h2>
+                  <h2>Consensus assesses artifact.<br />Code chooses the gate.</h2>
                   <p>AI never chooses the number of approvals or the timelock.</p>
                 </div>
 
@@ -1086,7 +1258,7 @@ export default function App() {
 
                 <div className="policy-note">
                   <ShieldCheck size={19} />
-                  <span>Semantic verdict is consensus-bound. Approval and timing rules are deterministic contract logic.</span>
+                  <span>Artifact verdict is consensus-bound. Approval threshold, approved_at timelock anchor, and pipeline execution authorization are deterministic.</span>
                 </div>
               </section>
             </div>
@@ -1119,7 +1291,7 @@ export default function App() {
         </div>
         <div className="footer-principle">
           <TimerReset size={16} />
-          <span>Describe → classify → approve → wait → execute</span>
+          <span>Bind artifact → assess → approve → wait → attest</span>
         </div>
         <a href="https://genlayer.com" target="_blank" rel="noreferrer" className="footer-genlayer">
           <img src="/genlayer-logo.jpg" alt="GenLayer" />
