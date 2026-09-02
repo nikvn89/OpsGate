@@ -180,6 +180,9 @@ export default function App() {
 
   const canApprove = useMemo(() => {
     if (!account || !workspace || !change || change.executed) return false;
+    // Once the deterministic approval threshold is satisfied, additional
+    // approvals are unnecessary even if the connected wallet is an approver.
+    if (change.approvals >= change.approvals_required) return false;
     const who = account.toLowerCase();
     if (
       who === workspace.approver_1.toLowerCase() &&
