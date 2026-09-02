@@ -1055,9 +1055,9 @@ footer {
 .artifact-panel > div { display: grid; gap: 4px; }
 .artifact-panel code { font-size: 11px; overflow-wrap: anywhere; color: #b6d7e5; }
 .artifact-panel a { display: inline-flex; gap: 6px; align-items: center; width: fit-content; font-size: 12px; }
-.execution-attestation { display: grid; gap: 10px; }
-.execution-attestation label { display: grid; gap: 6px; }
-.execution-attestation label span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .72; }
+.execution-attestation { margin: 16px 16px 0; display: grid; gap: 10px; }
+.execution-attestation label { display: grid; gap: 7px; }
+.execution-attestation label span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .72; line-height: 1; }
 .execution-attestation input { width: 100%; }
 
 /* Runtime UX polish after V2 R3 lifecycle testing */
@@ -1152,7 +1152,7 @@ footer {
   color: var(--green);
 }
 .execution-availability {
-  margin: -3px 18px 0;
+  margin: -3px 0 0;
   color: #8b744b;
   font-size: 9px;
   text-align: center;
