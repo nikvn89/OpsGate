@@ -12,13 +12,13 @@ OpsGate is a multi-tenant GenLayer dApp for risk-aware production change control
 **Project contract**
 
 ```text
-0xBb945d1e8f7072a211F634077742Cb319337AcbF
+0x31103eF15B807fC41775c4c5D9dF98D2F165Ce14
 ```
 
 **Explorer**
 
 ```text
-https://explorer-studio.genlayer.com/address/0xBb945d1e8f7072a211F634077742Cb319337AcbF
+https://explorer-studio.genlayer.com/address/0x31103eF15B807fC41775c4c5D9dF98D2F165Ce14
 ```
 
 OpsGate intentionally uses a separate deployment from the standalone `ChangeRisk` Intelligent Contract submission.
@@ -267,7 +267,7 @@ http://localhost:5173
 The defaults are already configured in `.env.example`:
 
 ```text
-VITE_CONTRACT_ADDRESS=0xBb945d1e8f7072a211F634077742Cb319337AcbF
+VITE_CONTRACT_ADDRESS=0x31103eF15B807fC41775c4c5D9dF98D2F165Ce14
 VITE_READ_RPC=/api/rpc
 VITE_DEMO_WORKSPACE_ID=0
 VITE_READ_STATE_STATUS=finalized

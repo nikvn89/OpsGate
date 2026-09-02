@@ -12,13 +12,13 @@ Chain ID 61999
 **Contract**
 
 ```text
-0xBb945d1e8f7072a211F634077742Cb319337AcbF
+0x31103eF15B807fC41775c4c5D9dF98D2F165Ce14
 ```
 
 **Explorer**
 
 ```text
-https://explorer-studio.genlayer.com/address/0xBb945d1e8f7072a211F634077742Cb319337AcbF
+https://explorer-studio.genlayer.com/address/0x31103eF15B807fC41775c4c5D9dF98D2F165Ce14
 ```
 
 ## Local test wallets used
