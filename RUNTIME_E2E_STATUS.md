@@ -33,3 +33,12 @@ Contract source SHA256: `c5901da704be949f9a618a769ad5939e0ef65a83edf16183b6833d6
 4. Pipeline attestation is disabled until approvals are complete and the timelock has elapsed; the UI shows the availability countdown/time.
 
 The deployed contract source is unchanged by these frontend fixes.
+
+
+## Production smoke
+
+- Vercel read/load workspace: PASS
+- Wallet switch and role refresh without reload: PASS
+- Vercel approval write: PASS
+- Console smoke after clear/navigation/wallet switch: PASS (no new errors observed)
+- Final UI polish: redundant approval button hidden after threshold reached
