@@ -178,26 +178,27 @@ export default function App() {
     return { ready: true, label: "Attest executed digest" };
   }, [change, browserSecondsRemaining]);
 
-  const canApprove = useMemo(() => {
-    if (!account || !workspace || !change || change.executed) return false;
-    // Once the deterministic approval threshold is satisfied, additional
-    // approvals are unnecessary even if the connected wallet is an approver.
-    if (change.approvals >= change.approvals_required) return false;
-    const who = account.toLowerCase();
-    if (
-      who === workspace.approver_1.toLowerCase() &&
-      !change.approver_1_approved
-    ) {
-      return true;
-    }
-    if (
-      who === workspace.approver_2.toLowerCase() &&
-      !change.approver_2_approved
-    ) {
-      return true;
-    }
-    return false;
-  }, [account, workspace, change]);
+  // Compute this on every render instead of memoizing the whole change object.
+  // The polling path can refresh fields on an existing change object identity;
+  // memoizing only on `change` can therefore leave a stale true value after the
+  // approval threshold is reached.
+  const canApprove = Boolean(
+    account &&
+    workspace &&
+    change &&
+    !change.executed &&
+    change.approvals < change.approvals_required &&
+    (
+      (
+        account.toLowerCase() === workspace.approver_1.toLowerCase() &&
+        !change.approver_1_approved
+      ) ||
+      (
+        account.toLowerCase() === workspace.approver_2.toLowerCase() &&
+        !change.approver_2_approved
+      )
+    )
+  );
 
   const isOwner = Boolean(
     account && workspace && account.toLowerCase() === workspace.owner.toLowerCase()
@@ -1134,7 +1135,7 @@ export default function App() {
                       </div>
                     </div>
 
-                    {canApprove && (
+                    {canApprove && change.approvals < change.approvals_required && (
                       <button className="approve-button" onClick={approveChange} disabled={pending}>
                         <ShieldCheck size={19} /> Approve change
                       </button>
@@ -1143,7 +1144,7 @@ export default function App() {
                     {isPipelineSigner && !change.executed && (
                       <div className="execution-attestation">
                         <label>
-                          <span>Executed digest</span>
+                          <span>Execution digest</span>
                           <input value={executedDigest} onChange={(e) => setExecutedDigest(e.target.value)} placeholder={change.artifact_digest} />
                         </label>
                         <button
